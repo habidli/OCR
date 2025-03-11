@@ -6,9 +6,16 @@ const cors = require("cors");
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Middleware pour gérer les requêtes JSON et CORS
 app.use(express.json({ limit: "10mb" }));
 app.use(cors());
 
+// Route de vérification de l'état de l'API
+app.get("/health", (req, res) => {
+    res.status(200).json({ message: "L'API est en ligne et fonctionne correctement." });
+});
+
+// Route OCR (pour l'extraction de texte)
 app.post("/ocr", async (req, res) => {
     try {
         const { image } = req.body;
@@ -28,6 +35,7 @@ app.post("/ocr", async (req, res) => {
     }
 });
 
+// Lancer le serveur sur le port spécifié
 app.listen(port, () => {
     console.log(`Serveur OCR en ligne sur le port ${port}`);
 });
