@@ -1,31 +1,24 @@
 require("dotenv").config();
 const express = require("express");
-const Tesseract = require("tesseract.js");
-const sharp = require("sharp");
 const cors = require("cors");
+const AWS = require("aws-sdk");
 
 const app = express();
 const port = process.env.PORT || 8080;
 
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(cors());
 
-// 🔹 Route de vérification (health check)
-app.get("/health", (req, res) => {
-    res.status(200).json({ message: "L'API est en ligne et fonctionne correctement." });
+// Configuration AWS SDK
+AWS.config.update({
+    accessKeyId: process.env.AKIAXKEXQYECCOGWNGOW,
+    secretAccessKey: process.env.T2W6qepWcAEfDrpiKII0LnyJsn2gU8u2lR5aEKaU,
+    region: process.env.us-east-1
 });
 
-// 🔹 Optimisation d'image avec Sharp
-async function preprocessImage(base64Image) {
-    const buffer = Buffer.from(base64Image, "base64");
-    return await sharp(buffer)
-        .greyscale()  // Convertir en noir et blanc
-        .resize({ width: 1000 }) // Redimensionner l’image
-        .toFormat("png") // Convertir en PNG
-        .toBuffer();
-}
+const textract = new AWS.Textract();
 
-// 🔹 Route OCR avec optimisation
+// Endpoint OCR avec AWS Textract
 app.post("/ocr", async (req, res) => {
     try {
         const { image } = req.body;
@@ -33,20 +26,28 @@ app.post("/ocr", async (req, res) => {
             return res.status(400).json({ error: "Aucune image fournie." });
         }
 
-        const processedImage = await preprocessImage(image);
-        const { data: { text } } = await Tesseract.recognize(
-            processedImage,
-            "eng+fra", // Langue: anglais + français
-            { tessedit_pageseg_mode: 7 } // Mode "single line" pour accélérer
-        );
+        const params = {
+            Document: { Bytes: Buffer.from(image, "base64") },
+            FeatureTypes: ["TEXT_DETECTION"]
+        };
 
-        res.json({ text });
+        const response = await textract.analyzeDocument(params).promise();
+        const extractedText = response.Blocks
+            .filter(block => block.BlockType === "LINE")
+            .map(block => block.Text)
+            .join("\n");
+
+        res.json({ text: extractedText });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// 🔹 Lancement du serveur
+// Vérification du statut de l'API
+app.get("/health", (req, res) => {
+    res.json({ message: "L'API Textract est en ligne" });
+});
+
 app.listen(port, () => {
-    console.log(`✅ Serveur OCR en ligne sur le port ${port}`);
+    console.log(`Serveur OCR AWS Textract en ligne sur le port ${port}`);
 });
